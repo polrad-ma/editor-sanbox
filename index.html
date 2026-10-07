@@ -1,351 +1,970 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>POLRAD Sandbox Map</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>POLRAD sandbox editor</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.2/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.0/dist/leaflet-geoman.css">
 
-<style>
-  :root{
-    --bg:#171a23; --panel:#1c212c; --panel2:#232a3a; --panel3:#2c3345; --border:#343d52;
-    --text:#eef1f7; --sub:#8891a5; --accent:#3254ad; --accent2:#e0526a; --good:#35c98c;
-  }
-  *{box-sizing:border-box;}
-  html,body{height:100%;margin:0;font-family:'Inter',-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
-  #map{position:absolute;inset:0;background:var(--bg);}
-  #langRow{
-    position:fixed;top:14px;left:14px;z-index:1200;
-    display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);
-    border-radius:8px;padding:3px;box-shadow:0 4px 14px #0007;
-  }
-  .langBtn{
-    background:transparent;border:0;color:var(--sub);font-family:inherit;
-    font-size:11px;font-weight:600;padding:5px 9px;border-radius:5px;cursor:pointer;
-  }
-  .langBtn.active{background:var(--accent);color:#fff;}
-
-  /* Advance bar — Divgen-style strip at the bottom */
-  #advanceBar{
-    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:1200;
-    width:min(920px,calc(100% - 60px));
-    background:var(--panel);border:1px solid var(--border);border-radius:10px;
-    box-shadow:0 6px 24px #0009;
-    display:none;
-    align-items:center;
-    gap:10px;
-    padding:8px 10px;
-    min-height:46px;
-  }
-  #advanceBar.open{display:flex;}
-  .navBtn{
-    flex:0 0 32px;width:32px;height:32px;padding:0;border-radius:6px;
-    background:var(--panel2);border:1px solid var(--border);color:var(--text);
-    display:flex;align-items:center;justify-content:center;cursor:pointer;
-    transition:background .12s,border-color .12s;
-  }
-  .navBtn:hover:not(:disabled){background:var(--panel3);border-color:var(--accent);}
-  .navBtn:disabled{opacity:.3;cursor:default;}
-  #advanceText{
-    flex:1;min-width:0;font-size:13.5px;font-weight:600;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
-  #advanceArea{
-    flex:0 0 auto;font-size:12.5px;font-weight:700;
-    padding:4px 10px;border-radius:6px;white-space:nowrap;
-  }
-  #advanceArea.red{background:#e0526a22;color:#e0526a;border:1px solid #e0526a;}
-  #advanceArea.blue{background:#3254ad22;color:#4a72f5;border:1px solid #3254ad;}
-  #advanceArea.neutral{background:var(--panel2);color:var(--sub);border:1px solid var(--border);}
-  #advanceDate{
-    flex:0 0 auto;font-size:12.5px;color:var(--sub);
-    display:flex;align-items:center;gap:6px;padding:0 4px;
-    border-left:1px solid var(--border);padding-left:10px;
-  }
-  #advanceDate svg{opacity:.7;}
-  #advanceCount{
-    flex:0 0 auto;font-size:11px;color:var(--sub);
-    padding-left:8px;border-left:1px solid var(--border);
-  }
-
-  /* When the sidebar-scale bar isn't shown, keep the small map default view */
-  .leaflet-control-scale-line{
-    background:var(--panel)!important;color:var(--text)!important;
-    border:1px solid var(--border)!important;border-top:none!important;
-    box-shadow:0 2px 8px #0006;border-radius:0 0 4px 4px;
-  }
-  .leaflet-control-zoom a{
-    background:var(--panel) !important;color:var(--text) !important;border-color:var(--border) !important;
-  }
-  .leaflet-control-zoom a:hover{
-    background:var(--panel2) !important;color:var(--text) !important;
-  }
-  .leaflet-popup.polygon-edit-popup .leaflet-popup-content-wrapper{
-    background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:8px;
-  }
-  .leaflet-popup.polygon-edit-popup .leaflet-popup-content{margin:10px 12px;}
-  .leaflet-popup.polygon-edit-popup .leaflet-popup-tip{background:var(--panel);}
-  .leaflet-popup.polygon-edit-popup .leaflet-popup-close-button{color:var(--sub) !important;}
-
-  #map3d{position:absolute;inset:0;z-index:1;display:none;background:#0a0e14;}
-  #map3d.active{display:block;}
-</style>
+  <style>
+    * { box-sizing: border-box; }
+    html, body, #map { margin: 0; width: 100%; height: 100%; font-family: Arial, sans-serif; }
+    #map { position: absolute; left: 340px; width: calc(100% - 340px); }
+    #side { display: none; position: absolute; z-index: 2000; left: 0; top: 0; bottom: 0; width: 340px; background: #fff; border-right: 1px solid #ddd; overflow: auto; }
+    .head { height: 62px; padding: 12px 15px; border-bottom: 1px solid #ddd; font-weight: 600; font-size: 16px; }
+    .body { padding: 12px; }
+    .tabs { display: flex; border-bottom: 1px solid #ddd; background: #f7f8f9; }
+    .tab { flex: 1; border: 0; border-bottom: 2px solid transparent; background: none; padding: 10px 6px; font-size: 13px; font-weight: 600; color: #777; cursor: pointer; }
+    .tab:hover { color: #333; }
+    .tab.active { color: #1a73e8; border-bottom-color: #1a73e8; background: #fff; }
+    .actions { display: flex; gap: 5px; margin-bottom: 9px; flex-wrap: wrap; }
+    .btn { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 7px 9px; cursor: pointer; }
+    .primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+    #search { width: 100%; height: 36px; border: 1px solid #ccc; border-radius: 6px; padding: 0 9px; margin-bottom: 9px; }
+    .box { background: #f7f8f9; border: 1px solid #ddd; border-radius: 7px; padding: 9px; margin-bottom: 10px; }
+    .box label { font-size: 11px; color: #777; }
+    .box select { width: 100%; height: 34px; margin-top: 4px; border: 1px solid #ccc; border-radius: 5px; background: #fff; }
+    .box button { width: 100%; margin-top: 7px; }
+    .layer { border: 1px solid transparent; border-radius: 7px; padding: 5px; margin: 2px 0; }
+    .lh { display: flex; align-items: center; gap: 6px; min-height: 28px; }
+    .arrow { border: 0; background: none; cursor: pointer; width: 20px; }
+    .vis { margin: 0; cursor: pointer; flex-shrink: 0; }
+    .sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #aaa; }
+    .lname { flex: 1; font-size: 13px; cursor: pointer; }
+    .lname.off { color: #999; text-decoration: line-through; }
+    .count { font-size: 11px; color: #888; }
+    .plist { margin-left: 27px; }
+    .item { display: flex; gap: 6px; padding: 6px; border-radius: 5px; font-size: 12px; cursor: grab; border: 1px solid transparent; user-select: none; }
+    .item:active { cursor: grabbing; }
+    .item:hover { background: #f1f3f4; }
+    .item.selected { background: #e8f0fe; border-color: #c5d7f7; color: #174ea6; }
+    .grip { color: #999; letter-spacing: -2px; }
+    .section { border-top: 1px solid #e5e5e5; padding-top: 9px; margin-top: 9px; }
+    .small { font-size: 11px; color: #777; }
+    #login { position: fixed; inset: 0; z-index: 9999; background: #202124; display: flex; align-items: center; justify-content: center; }
+    #loginbox { width: 350px; max-width: 90vw; background: #303134; color: white; padding: 22px; border-radius: 10px; }
+    #password { position: relative; z-index: 10001; pointer-events: auto; display: block; width: 100%; height: 40px; background: #202124; color: white; border: 1px solid #666; border-radius: 5px; padding: 0 9px; }
+    #loginbtn { width: 100%; height: 40px; margin-top: 8px; background: #1a73e8; color: white; border: 0; border-radius: 5px; cursor: pointer; }
+    #err { display: none; color: #ff8a80; font-size: 12px; margin-top: 8px; }
+    #mapSearchBox { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1000; width: min(420px, calc(100% - 40px)); }
+    #mapSearch { width: 100%; box-sizing: border-box; padding: 10px 14px; border: 1px solid #ccc; border-radius: 7px; background: rgba(255,255,255,.97); font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.2); outline: none; }
+    #mapSearchResults { display: none; margin-top: 4px; max-height: 300px; overflow-y: auto; background: white; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+    .mapSearchResult { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; }
+    .mapSearchResult:hover { background: #f1f5f9; }
+    #advanceEditorBox { margin-top:10px; border:1px solid #ddd; border-radius:7px; padding:10px; background:#f8f9fa; }
+    #advanceEditorBox h4 { margin:0 0 8px; font-size:13px; }
+    #advanceEditorBox label { display:block; margin-top:7px; font-size:11px; color:#777; }
+    #advanceEditorBox select, #advanceEditorBox textarea { width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:5px; background:#fff; padding:7px; font:13px Arial,sans-serif; }
+    #advanceEditorBox select { height:34px; }
+    #advanceEditorBox textarea { min-height:78px; resize:vertical; }
+    .advance-row { display:flex; gap:6px; margin-top:7px; }
+    .advance-row .btn { flex:1; }
+    #advanceStatus { font-size:11px; color:#777; line-height:1.4; margin-top:8px; }
+    #advanceStatus.active { color:#b3261e; font-weight:600; }
+    #advanceAreaPreview { margin-top:8px; padding:7px; border-radius:5px; background:#fff; border:1px solid #e1e1e1; font-size:12px; }
+    .advance-effect { display:inline-block; margin:2px 4px 2px 0; padding:2px 5px; border-radius:4px; font-weight:600; }
+    .advance-effect.red { color:#e53935; background:#ffebee; }
+    .advance-effect.blue { color:#1e88e5; background:#e3f2fd; }
+    #advanceHistory { margin-top:8px; }
+    .advance-history-item { position:relative; padding:7px; margin-bottom:6px; border:1px solid #e5e5e5; border-radius:5px; background:#fff; font-size:11px; line-height:1.35; }
+    .advance-history-item button { float:right; font-size:11px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer; padding:3px 6px; }
+    .advance-history-date { font-weight:700; }
+  </style>
 </head>
+
 <body>
-
-<div id="map"></div>
-<div id="map3d"></div>
-
-<div id="langRow">
-  <button class="langBtn active" id="langEn">EN</button>
-  <button class="langBtn" id="langRu">RU</button>
-</div>
-
-<div id="advanceBar">
-  <button class="navBtn" id="advPrev" title="Previous advance">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-  </button>
-  <div id="advanceText">Loading advances…</div>
-  <div id="advanceArea" class="neutral"></div>
-  <div id="advanceDate">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>
-    <span id="advanceDateText">—</span>
+  <div id="login">
+    <div id="loginbox">
+      <h2>POLRAD SANDBOX</h2>
+      <div style="color:#bbb;font-size:13px;margin-bottom:14px">Sandbox editor access</div>
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" tabindex="1">
+      <button id="loginbtn">Enter</button>
+      <div id="err">Incorrect password.</div>
+    </div>
   </div>
-  <button class="navBtn" id="advNext" title="Next advance">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-  </button>
-  <div id="advanceCount"></div>
-</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+  <div id="side">
+    <div class="head">POLRAD sandbox editor</div>
 
-  /* =================================================================
-     Sandbox map v2
-     - Reads russia.geojson + grayzone.geojson from polrad-ma/version
-     - Reads advances.json and drives the bottom advance bar
-     - Clicking ◀ ▶ swaps russia + grayzone to that advance's snapshot
-     - EN / RU toggle for the description text
-     - No terrain, no 3D, no draw tools — this file is just the bar test
-     ================================================================= */
+    <div class="tabs">
+      <button class="tab active" id="tabTools" type="button">Editor tools</button>
+      <button class="tab" id="tabAdvances" type="button">Advances</button>
+    </div>
 
-  const RAW_ROOT = "https://raw.githubusercontent.com/polrad-ma/version/main/";
-  const ADVANCES_URL = RAW_ROOT + "advances.json";
-  const RUSSIA_URL = RAW_ROOT + "russia.geojson";
-  const GRAYZONE_URL = RAW_ROOT + "grayzone.geojson";
+    <div class="body" id="paneTools">
+      <div class="actions">
+        <button class="btn" id="undo">↶ Undo</button>
+        <button class="btn" id="redo">↷ Redo</button>
+        <button class="btn" id="download">Download</button>
+        <button class="btn primary" id="publish">Publish</button>
+      </div>
 
-  const LAYERS = [
-    { key: "russia",   name: "Russian-controlled territory", color: "#a52714", outline: "#ff0000", pane: "territoryPane" },
-    { key: "grayzone", name: "Gray Zone",                    color: "#c3c3c3", outline: "#b4b4b4", pane: "grayZonePane" }
-  ];
+      <input id="search" placeholder="Search polygons...">
 
-  const map = L.map("map", {
-    center: [48.00, 37.75],
-    zoom: 7,
-    scrollWheelZoom: true,
-    zoomControl: false,
-    preferCanvas: true
-  });
+      <div class="box">
+        <b style="font-size:13px">Draw polygon</b>
+        <label style="display:block;margin-top:7px">New polygon layer</label>
+        <select id="drawLayer"></select>
+        <button class="btn primary" id="draw">Draw a polygon</button>
+      </div>
 
-  L.control.zoom({ position: "bottomright" }).addTo(map);
-  L.control.scale({ position: "bottomleft", metric: true, imperial: true, maxWidth: 150 }).addTo(map);
+      <div class="box" id="selectedBox" style="display:none">
+        <b id="selectedName" style="font-size:13px"></b>
+        <label style="display:block;margin-top:7px">Layer</label>
+        <select id="selectedLayer"></select>
+        <button class="btn" id="delete" style="color:#b3261e">Delete polygon</button>
+      </div>
 
-  map.createPane("territoryPane");
-  map.getPane("territoryPane").style.zIndex = 420;
-  map.createPane("grayZonePane");
-  map.getPane("grayZonePane").style.zIndex = 460;
+      <div class="section">
+        <b style="font-size:12px;color:#777">LAYERS</b>
+        <span class="small" style="margin-left:6px">(tick = visible on map)</span>
+      </div>
 
-  L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    { attribution: "Tiles © Esri", maxZoom: 19 }
-  ).addTo(map);
-  L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
-    { attribution: "Labels © Esri", maxZoom: 19 }
-  ).addTo(map);
+      <div id="layers"></div>
+      <div class="small" id="status">Ready.</div>
+    </div>
 
-  /* ---- State ---- */
-  const liveData = { russia: null, grayzone: null };  // fetched once from version repo
-  const geoLayers = {};                                // current Leaflet layer per key
-  let advances = [];
-  let advIndex = -1;
-  let currentLang = "en";
+    <div class="body" id="paneAdvances" style="display:none">
+      <b style="font-size:13px">Advance updates</b>
+      <div class="small" style="margin-top:3px">
+        Saved advance updates. New advances are created in the Editor tools tab.
+      </div>
+      <div id="advanceHistory"></div>
+    </div>
+  </div>
 
-  function makeGeoLayer(key, geojson) {
-    const info = LAYERS.find(l => l.key === key);
-    return L.geoJSON(geojson, {
-      pane: info.pane,
-      smoothFactor: 2.0,
-      style: {
-        color: info.outline,
-        fillColor: info.color,
+  <div id="map"></div>
+
+  <div id="mapSearchBox">
+    <input id="mapSearch" type="text" placeholder="🔍 Search towns, cities or coordinates..." autocomplete="off">
+    <div id="mapSearchResults"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.0/dist/leaflet-geoman.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+
+  <script>
+    // ---- CONFIG ----
+    var WORKER = "https://polrad-editor-api.streetviewfun066.workers.dev/";
+    var TARGET_REPO = "version";
+    var RAW_ROOT = "https://raw.githubusercontent.com/polrad-ma/version/main/";
+
+    var editorPassword = "";
+
+    // Only russia + grayzone in the sandbox
+    var LAYERS = [
+      ["russia",   "Russian-controlled territory", "russia.geojson",   "#a52714"],
+      ["grayzone", "Gray Zone",                    "grayzone.geojson", "#808080"]
+    ];
+
+    var map;
+    var groups = {};
+    var selected = null;
+    var drawing = false;
+    var polygonCounter = 1;
+    var history = [];
+    var historyIndex = -1;
+    var layerOpenState = {};
+    var layerVisible = {};
+
+    function $(id) { return document.getElementById(id); }
+    function config(id) { return LAYERS.find(function(l){ return l[0] === id; }); }
+    function polygonName(layer) {
+      return (layer.feature && layer.feature.properties && (layer.feature.properties.Name || layer.feature.properties.name)) || "New polygon";
+    }
+    function setStatus(text) { $("status").textContent = text; }
+
+    function createGroup(id) {
+      var g = L.featureGroup();
+      if (layerVisible[id] !== false) g.addTo(map);
+      return g;
+    }
+    function paneForLayer() { return "overlayPane"; }
+
+    function applyStyle(layer, isSelected) {
+      var c = config(layer._layer);
+      if (!c) return;
+      layer.setStyle({
+        color: c[3],
+        fillColor: c[3],
         fillOpacity: 0.4,
-        weight: 2
-      },
-      onEachFeature: (feature, layer) => {
-        if (feature.geometry && (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon")) {
-          layer.on("click", e => {
-            L.popup({ className: "polygon-edit-popup" })
-              .setLatLng(e.latlng)
-              .setContent("<b>" + info.name + "</b>")
-              .openOn(map);
-          });
+        weight: isSelected ? 4 : 2
+      });
+    }
+
+    function setupPolygon(layer, layerId) {
+      layer._layer = layerId;
+      layer._fid = layer._fid || ("p-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+      layer.feature = layer.feature || { type: "Feature", properties: {} };
+      layer.feature.properties = layer.feature.properties || {};
+      if (!layer.feature.properties.Name) layer.feature.properties.Name = "New polygon " + polygonCounter++;
+
+      applyStyle(layer);
+      layer.on("click", function(e){ L.DomEvent.stopPropagation(e); if (!drawing) select(layer); });
+      layer.on("pm:edit", function(){ if (!drawing && layer === selected) scheduleSave(); });
+      layer.on("pm:vertexadded", function(){ if (layer === selected) scheduleSave(); });
+      layer.on("pm:vertexremoved", function(){ if (layer === selected) scheduleSave(); });
+      layer.on("pm:markerdragend", function(){ if (layer === selected) scheduleSave(); });
+    }
+
+    function scheduleSave() {
+      clearTimeout(window._saveTimer);
+      window._saveTimer = setTimeout(function(){ saveHistory(); renderSidebar(); }, 250);
+    }
+
+    function select(layer) {
+      if (!layer || drawing) return;
+      if (layerVisible[layer._layer] === false) setLayerVisible(layer._layer, true);
+      if (selected && selected !== layer) { selected.pm.disable(); applyStyle(selected); }
+      selected = layer;
+      layer.pm.enable();
+      applyStyle(layer, true);
+      $("selectedBox").style.display = "block";
+      $("selectedName").textContent = polygonName(layer);
+      $("selectedLayer").value = layer._layer;
+      renderSidebar();
+    }
+    function deselect() {
+      if (selected) { selected.pm.disable(); applyStyle(selected); }
+      selected = null;
+      $("selectedBox").style.display = "none";
+      renderSidebar();
+    }
+    function setLayerVisible(id, visible) {
+      layerVisible[id] = visible;
+      var g = groups[id];
+      if (g && map) {
+        if (visible) { if (!map.hasLayer(g)) map.addLayer(g); }
+        else { if (selected && selected._layer === id) deselect(); if (map.hasLayer(g)) map.removeLayer(g); }
+      }
+      renderSidebar();
+    }
+
+    function findPolygon(fid) {
+      for (var i = 0; i < LAYERS.length; i++) {
+        var c = LAYERS[i];
+        var found = null;
+        if (!groups[c[0]]) continue;
+        groups[c[0]].eachLayer(function(l){ if (l._fid === fid) found = l; });
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function getSandboxGeoJSON() {
+      var result = {};
+      LAYERS.forEach(function(c){
+        result[c[0]] = {
+          type: "FeatureCollection",
+          features: groups[c[0]].getLayers().map(function(l){
+            var f = l.toGeoJSON();
+            f.properties = Object.assign({}, l.feature && l.feature.properties ? l.feature.properties : {});
+            return f;
+          })
+        };
+      });
+      return result;
+    }
+    function snapshot() { return JSON.parse(JSON.stringify(getSandboxGeoJSON())); }
+    function saveHistory() {
+      var snap = snapshot();
+      var prev = history[history.length - 1];
+      if (prev && JSON.stringify(prev) === JSON.stringify(snap)) return;
+      history = history.slice(0, historyIndex + 1);
+      history.push(snap);
+      if (history.length > 40) history.shift();
+      historyIndex = history.length - 1;
+    }
+    function undo() { if (historyIndex <= 0) return; historyIndex--; restore(history[historyIndex]); }
+    function redo() { if (historyIndex >= history.length - 1) return; historyIndex++; restore(history[historyIndex]); }
+    function restore(state) {
+      deselect();
+      LAYERS.forEach(function(c){ groups[c[0]].clearLayers(); });
+      LAYERS.forEach(function(c){
+        var fc = state[c[0]];
+        if (fc && fc.features) fc.features.forEach(function(f){ addFeature(f, c[0]); });
+      });
+      renderSidebar();
+    }
+    function addFeature(feature, layerId) {
+      var layer = L.geoJSON(feature).getLayers()[0];
+      if (!layer) return;
+      layer.feature = feature;
+      setupPolygon(layer, layerId);
+      groups[layerId].addLayer(layer);
+    }
+
+    function renderSidebar() {
+      var q = $("search").value.trim().toLowerCase();
+      var out = $("layers");
+      out.innerHTML = "";
+
+      LAYERS.forEach(function(c){
+        var id = c[0];
+        var group = groups[id];
+        var layers = group ? group.getLayers() : [];
+        var isVisible = layerVisible[id] !== false;
+
+        var row = document.createElement("div");
+        row.className = "layer";
+
+        var header = document.createElement("div");
+        header.className = "lh";
+
+        var arrow = document.createElement("button");
+        arrow.className = "arrow";
+        arrow.textContent = "▸";
+
+        var vis = document.createElement("input");
+        vis.type = "checkbox";
+        vis.className = "vis";
+        vis.checked = isVisible;
+        vis.onclick = function(e){ e.stopPropagation(); };
+        vis.onchange = function(){ setLayerVisible(id, vis.checked); };
+
+        var sw = document.createElement("span");
+        sw.className = "sw";
+        sw.style.background = c[3];
+
+        var name = document.createElement("span");
+        name.className = "lname" + (isVisible ? "" : " off");
+        name.textContent = c[1];
+
+        var count = document.createElement("span");
+        count.className = "count";
+        count.textContent = layers.length;
+
+        header.append(arrow, vis, sw, name, count);
+        row.appendChild(header);
+
+        var list = document.createElement("div");
+        list.className = "plist";
+        list.hidden = layerOpenState[id] !== true;
+        arrow.textContent = list.hidden ? "▸" : "▾";
+
+        function toggle() { list.hidden = !list.hidden; layerOpenState[id] = !list.hidden; arrow.textContent = list.hidden ? "▸" : "▾"; }
+        arrow.onclick = toggle;
+        name.onclick = toggle;
+
+        layers.filter(function(l){ return !q || polygonName(l).toLowerCase().indexOf(q) !== -1; }).forEach(function(layer){
+          var item = document.createElement("div");
+          item.className = "item" + (layer === selected ? " selected" : "");
+          var grip = document.createElement("span");
+          grip.className = "grip";
+          grip.textContent = "⋮⋮";
+          var txt = document.createElement("span");
+          txt.textContent = polygonName(layer);
+          item.append(grip, txt);
+          item.onclick = function(){ select(layer); };
+          list.appendChild(item);
+        });
+
+        row.appendChild(list);
+        out.appendChild(row);
+      });
+    }
+
+    function fillLayerSelects() {
+      ["drawLayer", "selectedLayer"].forEach(function(sid){
+        var s = $(sid);
+        s.innerHTML = "";
+        LAYERS.forEach(function(c){
+          var o = document.createElement("option");
+          o.value = c[0];
+          o.textContent = c[1];
+          s.appendChild(o);
+        });
+      });
+    }
+
+    function startDrawing() {
+      deselect();
+      drawing = true;
+      var target = $("drawLayer").value;
+      if (layerVisible[target] === false) setLayerVisible(target, true);
+      map.pm.enableDraw("Polygon", { snappable: true, allowSelfIntersection: false });
+      setStatus("Drawing polygon...");
+    }
+
+    window.polradAdvanceDrawing = false;
+
+    function polygonCreated(event) {
+      if (window.polradAdvanceDrawing || window.polradAdvanceFocusDrawing) return;
+      var layer = event.layer;
+      var target = $("drawLayer").value;
+      map.pm.disableDraw();
+      drawing = false;
+      map.removeLayer(layer);
+      var feature = layer.toGeoJSON();
+      feature.properties = { Name: "New polygon " + polygonCounter++ };
+      layer.feature = feature;
+      layer._layer = target;
+      layer._fid = "new-" + Date.now() + "-" + Math.random();
+      setupPolygon(layer, target);
+      groups[target].addLayer(layer);
+      saveHistory();
+      select(layer);
+      setStatus("New polygon added to " + config(target)[1] + ".");
+    }
+
+    async function load() {
+      var remoteLoaded = false;
+      var remote = {};
+      var bust = Date.now();
+      for (var i = 0; i < LAYERS.length; i++) {
+        var c = LAYERS[i];
+        try {
+          var sep = c[2].indexOf("?") === -1 ? "?" : "&";
+          var r = await fetch(RAW_ROOT + c[2] + sep + "v=" + bust, { cache: "no-store" });
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          remote[c[0]] = await r.json();
+          remoteLoaded = true;
+        } catch (e) {
+          console.warn("Could not load " + c[1] + ":", e);
         }
       }
-    });
-  }
-
-  function setLayerData(key, geojson) {
-    if (geoLayers[key]) map.removeLayer(geoLayers[key]);
-    geoLayers[key] = makeGeoLayer(key, geojson);
-    geoLayers[key].addTo(map);
-  }
-
-  function clearAllLayers() {
-    LAYERS.forEach(l => {
-      if (geoLayers[l.key]) {
-        map.removeLayer(geoLayers[l.key]);
-        geoLayers[l.key] = null;
-      }
-    });
-  }
-
-  /* ---- Load live files + advances.json ---- */
-  async function loadAll() {
-    const bust = "?v=" + Date.now();
-    const fetches = LAYERS.map(l => {
-      const url = l.key === "russia" ? RUSSIA_URL : GRAYZONE_URL;
-      return fetch(url + bust, { cache: "no-store" })
-        .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
-        .then(d => { liveData[l.key] = d; })
-        .catch(err => { console.warn("Could not load " + l.key + ":", err); liveData[l.key] = null; });
-    });
-
-    await Promise.all(fetches);
-
-    // Draw the live layers
-    LAYERS.forEach(l => {
-      if (liveData[l.key]) setLayerData(l.key, liveData[l.key]);
-    });
-
-    // Fetch advances list
-    try {
-      const r = await fetch(ADVANCES_URL + bust, { cache: "no-store" });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const list = await r.json();
-      if (Array.isArray(list)) {
-        advances = list;
-        // Sort by date+time ascending so ◀ goes backward in time
-        advances.sort((a, b) => {
-          const ak = String(a.date || "") + "T" + String(a.time || "00:00:00");
-          const bk = String(b.date || "") + "T" + String(b.time || "00:00:00");
-          return ak.localeCompare(bk);
+      LAYERS.forEach(function(c){ groups[c[0]] = createGroup(c[0]); });
+      if (remoteLoaded) {
+        LAYERS.forEach(function(c){
+          var fc = remote[c[0]];
+          if (fc && fc.features) fc.features.forEach(function(f){ addFeature(f, c[0]); });
         });
+        saveHistory();
+        renderSidebar();
+        setStatus("Loaded current sandbox map.");
+      } else {
+        saveHistory();
+        renderSidebar();
+        setStatus("Could not load sandbox map files.");
       }
-    } catch (e) {
-      console.warn("Could not load advances.json:", e);
-      advances = [];
     }
 
-    if (advances.length) {
-      advIndex = advances.length - 1; // default to latest
-      document.getElementById("advanceBar").classList.add("open");
-      applyAdvanceState();
-    } else {
-      document.getElementById("advanceBar").classList.remove("open");
-    }
-  }
-
-  /* ---- Advance bar ---- */
-  const advPrevBtn = document.getElementById("advPrev");
-  const advNextBtn = document.getElementById("advNext");
-  const advTextEl = document.getElementById("advanceText");
-  const advAreaEl = document.getElementById("advanceArea");
-  const advDateEl = document.getElementById("advanceDateText");
-  const advCountEl = document.getElementById("advanceCount");
-
-  function pickText(item) {
-    if (!item) return "";
-    if (currentLang === "ru") return item.text_ru || item.text_en || item.text || "";
-    return item.text_en || item.text || item.text_ru || "";
-  }
-
-  function pickAreaDisplay(item) {
-    if (!item) return "";
-    return item.areaDisplay || "";
-  }
-
-  function pickAreaColor(item) {
-    if (!item) return "neutral";
-    if (item.areaColor === "blue") return "blue";
-    if (item.areaColor === "red") return "red";
-    // fallbacks from effects if areaColor is absent
-    const eff = Array.isArray(item.areaEffects) ? item.areaEffects[0] : null;
-    if (eff) return eff.side === "ua" ? "blue" : "red";
-    return item.side === "ua" ? "blue" : "red";
-  }
-
-  async function applyAdvanceState() {
-    const item = advances[advIndex];
-    if (!item) return;
-
-    // Bar contents
-    advTextEl.textContent = pickText(item);
-    const areaText = pickAreaDisplay(item);
-    advAreaEl.textContent = areaText;
-    advAreaEl.className = pickAreaColor(item);
-    advAreaEl.style.display = areaText ? "" : "none";
-    advDateEl.textContent = item.date || "—";
-    advCountEl.textContent = (advIndex + 1) + " / " + advances.length;
-
-    advPrevBtn.disabled = advIndex <= 0;
-    advNextBtn.disabled = advIndex >= advances.length - 1;
-
-    // Load the snapshot for this advance and swap russia/grayzone
-    if (item.snapshot) {
-      const snapUrl = RAW_ROOT + item.snapshot;
+    async function login() {
       try {
-        const r = await fetch(snapUrl + "?v=" + Date.now(), { cache: "no-store" });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const snap = await r.json();
-        // The editor writes { "russia": fc, "grayzone": fc } or
-        // { "Russian-controlled territory": fc, "Gray Zone": fc }
-        const ruFc = snap["russia"] || snap["Russian-controlled territory"] || null;
-        const gzFc = snap["grayzone"] || snap["Gray Zone"] || null;
+        var r = await fetch(WORKER, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "login", password: $("password").value })
+        });
+        var result = await r.json();
+        if (!r.ok || !result.success) throw new Error("Incorrect password.");
+        editorPassword = $("password").value;
 
-        clearAllLayers();
-        if (ruFc) setLayerData("russia", ruFc);
-        if (gzFc) setLayerData("grayzone", gzFc);
+        $("login").style.display = "none";
+        $("side").style.display = "block";
+
+        map = L.map("map", { center: [48, 37.75], zoom: 7 });
+
+        var satellite = L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          { attribution: "Tiles © Esri" }
+        );
+        var esriLabels = L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+          { attribution: "Labels © Esri" }
+        );
+        L.layerGroup([satellite, esriLabels]).addTo(map);
+
+        map.on("click", function(){ if (drawing) return; deselect(); });
+        map.on("pm:create", polygonCreated);
+
+        map.pm.addControls({
+          position: "bottomleft",
+          drawMarker: false, drawCircleMarker: false, drawPolyline: false,
+          drawRectangle: false, drawCircle: false, drawText: false,
+          editMode: false, dragMode: false, cutPolygon: false,
+          removalMode: false, drawPolygon: false
+        });
+
+        fillLayerSelects();
+        await load();
       } catch (e) {
-        console.warn("Could not load advance snapshot:", e);
+        $("err").style.display = "block";
       }
     }
-  }
 
-  advPrevBtn.onclick = () => { if (advIndex > 0) { advIndex--; applyAdvanceState(); } };
-  advNextBtn.onclick = () => { if (advIndex < advances.length - 1) { advIndex++; applyAdvanceState(); } };
+    window.addEventListener("load", function(){ setTimeout(function(){ $("password").focus(); }, 50); });
+    $("loginbtn").onclick = login;
+    $("password").onkeydown = function(e){ if (e.key === "Enter") login(); };
 
-  /* ---- Language toggle ---- */
-  document.getElementById("langEn").onclick = () => {
-    currentLang = "en";
-    document.getElementById("langEn").classList.add("active");
-    document.getElementById("langRu").classList.remove("active");
-    if (advIndex >= 0) applyAdvanceState();
-  };
-  document.getElementById("langRu").onclick = () => {
-    currentLang = "ru";
-    document.getElementById("langRu").classList.add("active");
-    document.getElementById("langEn").classList.remove("active");
-    if (advIndex >= 0) applyAdvanceState();
-  };
+    $("draw").onclick = startDrawing;
+    $("delete").onclick = function() {
+      if (!selected) return;
+      groups[selected._layer].removeLayer(selected);
+      selected = null;
+      $("selectedBox").style.display = "none";
+      saveHistory();
+      renderSidebar();
+    };
+    $("selectedLayer").onchange = function(e) {
+      if (!selected) return;
+      var target = e.target.value;
+      var src = selected._layer;
+      if (src === target) return;
+      groups[src].removeLayer(selected);
+      selected._layer = target;
+      groups[target].addLayer(selected);
+      applyStyle(selected, true);
+      saveHistory();
+      renderSidebar();
+    };
 
-  /* ---- Go ---- */
-  loadAll();
+    $("search").oninput = renderSidebar;
+    $("undo").onclick = undo;
+    $("redo").onclick = redo;
 
-</script>
+    $("download").onclick = function() {
+      var blob = new Blob([JSON.stringify(getSandboxGeoJSON(), null, 2)], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "sandbox-data.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    /* =========== ADVANCES =========== */
+    var ADVANCE_STORAGE_KEY = "polrad_sandbox_advances";
+    var advances = [];
+    var advanceState = {
+      active: false,
+      side: "russia",
+      before: null,
+      createdFids: [],
+      lastEffects: null
+    };
+
+    function loadAdvances() {
+      try {
+        var raw = localStorage.getItem(ADVANCE_STORAGE_KEY);
+        advances = raw ? JSON.parse(raw) : [];
+      } catch (e) { advances = []; }
+    }
+    function saveAdvances() {
+      try { localStorage.setItem(ADVANCE_STORAGE_KEY, JSON.stringify(advances)); }
+      catch (e) { console.warn("saveAdvances failed:", e); }
+    }
+
+    function getLayerFeatures(layerId) {
+      return groups[layerId].getLayers().map(function(l){
+        var f = l.toGeoJSON();
+        f.properties = Object.assign({}, l.feature && l.feature.properties ? l.feature.properties : {});
+        return f;
+      });
+    }
+    function unionAreaKm2(layerIds) {
+      var features = [];
+      layerIds.forEach(function(id){
+        getLayerFeatures(id).forEach(function(f){
+          if (f && f.geometry && (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon")) features.push(f);
+        });
+      });
+      if (!features.length) return 0;
+      var r = features[0];
+      for (var i = 1; i < features.length; i++) { try { r = turf.union(r, features[i]); } catch (e) {} }
+      try { return turf.area(r) / 1e6; } catch (e) { return 0; }
+    }
+    function currentControlledAreas() {
+      return { russia: unionAreaKm2(["russia"]), grayzone: unionAreaKm2(["grayzone"]) };
+    }
+    function createdPolygonsAreaKm2() {
+      var t = 0;
+      advanceState.createdFids.forEach(function(fid){
+        var l = findPolygon(fid);
+        if (l) { try { t += turf.area(l.toGeoJSON()); } catch (e) {} }
+      });
+      return t / 1e6;
+    }
+    function computeAdvanceEffects() {
+      var value = Number(createdPolygonsAreaKm2().toFixed(2));
+      return value >= 0.005 ? [{ side: advanceState.side, value: value }] : [];
+    }
+    function areaDisplay(effects) {
+      return (effects || []).map(function(e){
+        var v = Number(e.value);
+        return (v > 0 ? "+" : "") + v.toFixed(2) + " km²";
+      }).join(" ");
+    }
+    function dateTimeNow() {
+      var d = new Date();
+      var p = function(n){ return String(n).padStart(2, "0"); };
+      return {
+        date: d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate()),
+        time: p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds())
+      };
+    }
+    function setAdvanceStatus(text, active) {
+      var node = $("advanceStatus");
+      if (!node) return;
+      node.textContent = text;
+      node.className = active ? "active" : "";
+    }
+    function renderAreaPreview() {
+      var box = $("advanceAreaPreview");
+      var effects = advanceState.lastEffects;
+      if (!box || !effects) return;
+      var color = $("advanceColor").value;
+      box.innerHTML =
+        '<div style="font-size:11px;color:#777;margin-bottom:3px">Advance polygon area</div>' +
+        effects.map(function(e){
+          var v = Number(e.value);
+          return '<span class="advance-effect ' + color + '">' +
+            (v > 0 ? "+" : "") + v.toFixed(2) + ' km²</span>';
+        }).join(" ") +
+        '<div style="margin-top:5px;color:#777;font-size:11px">This color is used for the area chip on the sandbox map.</div>';
+    }
+
+    function createAdvanceUI() {
+      var actions = document.querySelector(".actions");
+      if (!actions || $("advanceEditorBox")) return;
+
+      var createButton = document.createElement("button");
+      createButton.className = "btn";
+      createButton.id = "createAdvanceButton";
+      createButton.textContent = "+ Create Advance";
+      actions.insertBefore(createButton, $("publish"));
+
+      var box = document.createElement("div");
+      box.className = "box";
+      box.id = "advanceEditorBox";
+      box.innerHTML = `
+        <h4>Advance update</h4>
+        <label>Advance side</label>
+        <select id="advanceSide">
+          <option value="russia">🔴 Russia</option>
+          <option value="grayzone">⚪ Gray zone change</option>
+        </select>
+        <label>Area chip color on the sandbox map</label>
+        <select id="advanceColor">
+          <option value="red">🔴 Red</option>
+          <option value="blue">🔵 Blue</option>
+        </select>
+        <div class="advance-row">
+          <button class="btn primary" id="advanceStart">Create Advance</button>
+          <button class="btn" id="advanceFinish" disabled>Finish Advance</button>
+        </div>
+        <div id="advanceStatus">No advance in progress.</div>
+        <div id="advanceAreaPreview">
+          Area changes will appear here after you click Finish Advance.
+        </div>
+        <div id="advanceTextWrap" style="display:none">
+          <label>English advance description</label>
+          <textarea id="advanceTextEn" placeholder="Example: Russian forces advanced near ..."></textarea>
+          <label>Russian advance description</label>
+          <textarea id="advanceTextRu" placeholder="Например: российские силы продвинулись ..."></textarea>
+          <div class="advance-row">
+            <button class="btn primary" id="advanceSave">Save Advance</button>
+            <button class="btn" id="advanceCancel">Cancel</button>
+          </div>
+        </div>
+      `;
+      actions.parentNode.insertBefore(box, $("search"));
+
+      createButton.onclick = startAdvance;
+      $("advanceStart").onclick = startAdvance;
+      $("advanceFinish").onclick = finishAdvance;
+      $("advanceSave").onclick = saveAdvance;
+      $("advanceCancel").onclick = cancelAdvance;
+
+      renderAdvanceHistory();
+    }
+
+    function addDrawAdvanceButton() {
+      if ($("drawAdvancePolygon")) return;
+      var row = document.createElement("div");
+      row.className = "advance-row";
+      row.id = "advancePolygonRow";
+      var sideName = advanceState.side === "russia" ? "Russian" : "Gray zone";
+      row.innerHTML = '<button class="btn" id="drawAdvancePolygon">Draw ' + sideName + ' advance polygon</button>';
+      $("advanceTextWrap").parentNode.insertBefore(row, $("advanceTextWrap"));
+      $("drawAdvancePolygon").onclick = drawAdvancePolygon;
+    }
+
+    function startAdvance() {
+      if (advanceState.active) return;
+      advanceState.active = true;
+      advanceState.side = $("advanceSide").value;
+      advanceState.before = currentControlledAreas();
+      advanceState.createdFids = [];
+      advanceState.lastEffects = null;
+      $("advanceStart").disabled = true;
+      $("advanceFinish").disabled = false;
+      $("advanceSide").disabled = true;
+      setAdvanceStatus("Advance mode active. Draw the polygon, then click Finish Advance.", true);
+      addDrawAdvanceButton();
+    }
+
+    function drawAdvancePolygon() {
+      if (!advanceState.active) return;
+      var layerId = advanceState.side;
+      if (!groups[layerId]) return;
+      if (layerVisible[layerId] === false) setLayerVisible(layerId, true);
+      deselect();
+      drawing = true;
+      window.polradAdvanceDrawing = true;
+      map.pm.enableDraw("Polygon", { snappable: true, allowSelfIntersection: false });
+
+      function onCreate(event) {
+        map.off("pm:create", onCreate);
+        if (!window.polradAdvanceDrawing) return;
+        window.polradAdvanceDrawing = false;
+
+        var layer = event.layer;
+        map.pm.disableDraw();
+        drawing = false;
+        map.removeLayer(layer);
+
+        var feature = layer.toGeoJSON();
+        feature.properties = { Name: "Advance " + (advances.length + 1) };
+        layer.feature = feature;
+        layer._layer = layerId;
+        layer._fid = "advance-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+        layer.feature.properties._advanceId = "pending";
+
+        setupPolygon(layer, layerId);
+        groups[layerId].addLayer(layer);
+        advanceState.createdFids.push(layer._fid);
+        saveHistory();
+        renderSidebar();
+        select(layer);
+        setAdvanceStatus("Advance polygon created. Reshape it if needed, then click Finish Advance.", true);
+      }
+
+      map.on("pm:create", onCreate);
+    }
+
+    function finishAdvance() {
+      if (!advanceState.active) return;
+      advanceState.lastEffects = computeAdvanceEffects();
+      renderAreaPreview();
+      $("advanceTextWrap").style.display = "block";
+      $("advanceFinish").disabled = true;
+      $("advanceTextEn").focus();
+      setAdvanceStatus("Area calculated. Write both descriptions, then click Save Advance.", false);
+    }
+
+    async function saveAdvance() {
+      if (!advanceState.active) return;
+      var textEn = $("advanceTextEn").value.trim();
+      var textRu = $("advanceTextRu").value.trim();
+      if (!textEn || !textRu) {
+        alert("Please enter both English and Russian descriptions.");
+        if (!textEn) $("advanceTextEn").focus();
+        else $("advanceTextRu").focus();
+        return;
+      }
+
+      var now = dateTimeNow();
+      var effects = computeAdvanceEffects();
+      var primaryValue = effects.length ? effects[0].value : 0;
+      var id = "adv-" + Date.now();
+
+      advanceState.createdFids.forEach(function(fid){
+        var l = findPolygon(fid);
+        if (l && l.feature && l.feature.properties) l.feature.properties._advanceId = id;
+      });
+
+      // Snapshot the full russia + grayzone state at this moment.
+      var snap = getSandboxGeoJSON();
+
+      // Focus: current map view
+      var c = map.getCenter();
+      var focus = { lat: c.lat, lng: c.lng, zoom: map.getZoom() };
+
+      var item = {
+        id: id,
+        date: now.date,
+        time: now.time,
+        text_en: textEn,
+        text_ru: textRu,
+        text: textEn,
+        side: advanceState.side,
+        advanceType: "normal",
+        areaChange: Number(primaryValue.toFixed(2)),
+        areaEffects: effects,
+        areaDisplay: areaDisplay(effects),
+        areaColor: $("advanceColor").value,
+        focus: focus,
+        polygonFids: advanceState.createdFids.slice(),
+        snapshot: "history/advances/" + id + ".json",
+        beforeAreas: advanceState.before,
+        _snapshotData: snap
+      };
+
+      advances.push(item);
+      saveAdvances();
+      renderAdvanceHistory();
+
+      advanceState.active = false;
+      advanceState.createdFids = [];
+      $("advanceStart").disabled = false;
+      $("advanceFinish").disabled = true;
+      $("advanceSide").disabled = false;
+      $("advanceTextWrap").style.display = "none";
+      $("advanceTextEn").value = "";
+      $("advanceTextRu").value = "";
+      var row = $("advancePolygonRow");
+      if (row) row.remove();
+
+      setAdvanceStatus("Advance saved locally. Click Publish to push to the version repo.", false);
+      renderSidebar();
+    }
+
+    function cancelAdvance() {
+      window.polradAdvanceDrawing = false;
+      if (!advanceState.active) return;
+      advanceState.active = false;
+      advanceState.createdFids = [];
+      $("advanceStart").disabled = false;
+      $("advanceFinish").disabled = true;
+      $("advanceSide").disabled = false;
+      $("advanceTextWrap").style.display = "none";
+      var row = $("advancePolygonRow");
+      if (row) row.remove();
+      setAdvanceStatus("Advance cancelled.", false);
+    }
+
+    function renderAdvanceHistory() {
+      var box = $("advanceHistory");
+      if (!box) return;
+      box.innerHTML = "";
+      if (!advances.length) {
+        box.innerHTML = '<div class="small">No advance history saved yet.</div>';
+        return;
+      }
+      advances.slice().reverse().forEach(function(item){
+        var row = document.createElement("div");
+        row.className = "advance-history-item";
+        var sideLabel = item.side === "russia" ? "🔴 Russia" : "⚪ Gray zone";
+        var color = (item.areaColor || "red") === "blue" ? "#1e88e5" : "#e53935";
+        row.innerHTML =
+          '<div class="advance-history-date">' + item.date + " " + item.time + " · " + sideLabel + "</div>" +
+          "<div><b>EN:</b> " + (item.text_en || "") + "</div>" +
+          "<div><b>RU:</b> " + (item.text_ru || "") + "</div>" +
+          (item.areaDisplay ? '<div>Area: <span style="font-weight:700;color:' + color + '">' + item.areaDisplay + "</span></div>" : "");
+        box.appendChild(row);
+      });
+    }
+
+    // ---- PUBLISH ----
+    $("publish").onclick = async function() {
+      setStatus("Publishing...");
+      try {
+        // Step 1: upload any un-uploaded snapshots
+        var unsent = advances.filter(function(a){ return a._snapshotData && !a._snapshotUploaded; });
+        if (unsent.length) {
+          setStatus("Uploading " + unsent.length + " snapshot(s)...");
+          var snapshots = {};
+          unsent.forEach(function(a){ snapshots[a.id] = a._snapshotData; });
+          var snapResp = await fetch(WORKER, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "publishSnapshots",
+              repo: TARGET_REPO,
+              password: editorPassword,
+              snapshots: snapshots
+            })
+          });
+          var snapResult = await snapResp.json();
+          if (!snapResp.ok || !snapResult.success) throw new Error(snapResult.error || "Snapshot upload failed");
+          unsent.forEach(function(a){ a._snapshotUploaded = true; delete a._snapshotData; });
+          saveAdvances();
+        }
+
+        // Step 2: publish main files + advances.json
+        setStatus("Publishing map files...");
+        var publishAdvances = advances.map(function(a){
+          var c = Object.assign({}, a);
+          delete c._snapshotData;
+          delete c._snapshotUploaded;
+          return c;
+        });
+
+        var response = await fetch(WORKER, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "publish",
+            repo: TARGET_REPO,
+            password: editorPassword,
+            files: getSandboxGeoJSON(),
+            advances: publishAdvances
+          })
+        });
+        var result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "Publish failed");
+
+        setStatus("Published to " + (result.repo || TARGET_REPO) + ".");
+        alert("Published successfully to " + (result.repo || TARGET_REPO) + "!");
+      } catch (e) {
+        setStatus(e.message);
+        alert("Publish failed.\n\n" + e.message);
+      }
+    };
+
+    /* ---- SEARCH ---- */
+    var sInput = $("mapSearch");
+    var sResults = $("mapSearchResults");
+    var searchMarker = null;
+    function hideResults() { sResults.style.display = "none"; sResults.innerHTML = ""; }
+    async function doSearch() {
+      var q = sInput.value.trim();
+      if (!q) { hideResults(); return; }
+      var m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+      if (m) {
+        var lat = Number(m[1]), lng = Number(m[2]);
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          map.setView([lat, lng], 13);
+          if (searchMarker) map.removeLayer(searchMarker);
+          searchMarker = L.marker([lat, lng]).addTo(map).bindPopup(lat + ", " + lng).openPopup();
+          hideResults();
+          return;
+        }
+      }
+      sResults.innerHTML = '<div class="mapSearchResult">Searching...</div>';
+      sResults.style.display = "block";
+      try {
+        var r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&accept-language=en&q=" + encodeURIComponent(q), { headers: { "Accept": "application/json" } });
+        var places = await r.json();
+        sResults.innerHTML = "";
+        if (!places.length) { sResults.innerHTML = '<div class="mapSearchResult">No results found.</div>'; return; }
+        places.forEach(function(p){
+          var it = document.createElement("div");
+          it.className = "mapSearchResult";
+          it.textContent = p.display_name;
+          it.onclick = function(){
+            var plat = Number(p.lat), plng = Number(p.lon);
+            map.setView([plat, plng], 13);
+            if (searchMarker) map.removeLayer(searchMarker);
+            searchMarker = L.marker([plat, plng]).addTo(map).bindPopup(p.display_name).openPopup();
+            hideResults();
+          };
+          sResults.appendChild(it);
+        });
+      } catch (e) {
+        sResults.innerHTML = '<div class="mapSearchResult">Search failed.</div>';
+      }
+    }
+    sInput.addEventListener("keydown", function(e){ if (e.key === "Enter") doSearch(); if (e.key === "Escape") hideResults(); });
+    document.addEventListener("click", function(e){ if (!$("mapSearchBox").contains(e.target)) hideResults(); });
+
+    /* ---- TABS ---- */
+    function showTab(name) {
+      $("paneTools").style.display = name === "tools" ? "block" : "none";
+      $("paneAdvances").style.display = name === "advances" ? "block" : "none";
+      $("tabTools").classList.toggle("active", name === "tools");
+      $("tabAdvances").classList.toggle("active", name === "advances");
+    }
+    $("tabTools").onclick = function(){ showTab("tools"); };
+    $("tabAdvances").onclick = function(){ showTab("advances"); };
+
+    /* ---- INIT ---- */
+    loadAdvances();
+    createAdvanceUI();
+  </script>
 </body>
 </html>
