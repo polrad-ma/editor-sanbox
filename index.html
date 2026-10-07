@@ -12,7 +12,7 @@
     * { box-sizing: border-box; }
     html, body, #map { margin: 0; width: 100%; height: 100%; font-family: Arial, sans-serif; }
     #map { position: absolute; left: 340px; width: calc(100% - 340px); }
-    #side { display: none; position: absolute; z-index: 2000; left: 0; top: 0; bottom: 0; width: 340px; background: #fff; border-right: 1px solid #ddd; overflow: auto; }
+    #side { position: absolute; z-index: 2000; left: 0; top: 0; bottom: 0; width: 340px; background: #fff; border-right: 1px solid #ddd; overflow: auto; }
     .head { height: 62px; padding: 12px 15px; border-bottom: 1px solid #ddd; font-weight: 600; font-size: 16px; }
     .body { padding: 12px; }
     .tabs { display: flex; border-bottom: 1px solid #ddd; background: #f7f8f9; }
@@ -43,11 +43,6 @@
     .grip { color: #999; letter-spacing: -2px; }
     .section { border-top: 1px solid #e5e5e5; padding-top: 9px; margin-top: 9px; }
     .small { font-size: 11px; color: #777; }
-    #login { position: fixed; inset: 0; z-index: 9999; background: #202124; display: flex; align-items: center; justify-content: center; }
-    #loginbox { width: 350px; max-width: 90vw; background: #303134; color: white; padding: 22px; border-radius: 10px; }
-    #password { position: relative; z-index: 10001; pointer-events: auto; display: block; width: 100%; height: 40px; background: #202124; color: white; border: 1px solid #666; border-radius: 5px; padding: 0 9px; }
-    #loginbtn { width: 100%; height: 40px; margin-top: 8px; background: #1a73e8; color: white; border: 0; border-radius: 5px; cursor: pointer; }
-    #err { display: none; color: #ff8a80; font-size: 12px; margin-top: 8px; }
     #mapSearchBox { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1000; width: min(420px, calc(100% - 40px)); }
     #mapSearch { width: 100%; box-sizing: border-box; padding: 10px 14px; border: 1px solid #ccc; border-radius: 7px; background: rgba(255,255,255,.97); font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.2); outline: none; }
     #mapSearchResults { display: none; margin-top: 4px; max-height: 300px; overflow-y: auto; background: white; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
@@ -75,16 +70,6 @@
 </head>
 
 <body>
-  <div id="login">
-    <div id="loginbox">
-      <h2>POLRAD SANDBOX</h2>
-      <div style="color:#bbb;font-size:13px;margin-bottom:14px">Sandbox editor access</div>
-      <input id="password" type="password" placeholder="Password" autocomplete="current-password" tabindex="1">
-      <button id="loginbtn">Enter</button>
-      <div id="err">Incorrect password.</div>
-    </div>
-  </div>
-
   <div id="side">
     <div class="head">POLRAD sandbox editor</div>
 
@@ -151,8 +136,6 @@
     var WORKER = "https://sandbox.streetviewfun066.workers.dev/";
     var TARGET_REPO = "version";
     var RAW_ROOT = "https://raw.githubusercontent.com/polrad-ma/version/main/";
-
-    var editorPassword = "";
 
     var LAYERS = [
       ["russia",   "Russian-controlled territory", "russia.geojson",   "#a52714"],
@@ -421,4 +404,526 @@
           if (!r.ok) throw new Error("HTTP " + r.status);
           remote[c[0]] = await r.json();
           remoteLoaded = true;
-        } catch (e)
+        } catch (e) {
+          console.warn("Could not load " + c[1] + ":", e);
+        }
+      }
+      LAYERS.forEach(function(c){ groups[c[0]] = createGroup(c[0]); });
+      if (remoteLoaded) {
+        LAYERS.forEach(function(c){
+          var fc = remote[c[0]];
+          if (fc && fc.features) fc.features.forEach(function(f){ addFeature(f, c[0]); });
+        });
+        saveHistory();
+        renderSidebar();
+        setStatus("Loaded current sandbox map.");
+      } else {
+        saveHistory();
+        renderSidebar();
+        setStatus("Could not load sandbox map files.");
+      }
+    }
+
+    function boot() {
+      $("side").style.display = "block";
+
+      map = L.map("map", { center: [48, 37.75], zoom: 7 });
+
+      var satellite = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { attribution: "Tiles © Esri" }
+      );
+      var esriLabels = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+        { attribution: "Labels © Esri" }
+      );
+      L.layerGroup([satellite, esriLabels]).addTo(map);
+
+      map.on("click", function(){ if (drawing) return; deselect(); });
+      map.on("pm:create", polygonCreated);
+
+      map.pm.addControls({
+        position: "bottomleft",
+        drawMarker: false, drawCircleMarker: false, drawPolyline: false,
+        drawRectangle: false, drawCircle: false, drawText: false,
+        editMode: false, dragMode: false, cutPolygon: false,
+        removalMode: false, drawPolygon: false
+      });
+
+      fillLayerSelects();
+      load();
+    }
+
+    $("draw").onclick = startDrawing;
+    $("delete").onclick = function() {
+      if (!selected) return;
+      groups[selected._layer].removeLayer(selected);
+      selected = null;
+      $("selectedBox").style.display = "none";
+      saveHistory();
+      renderSidebar();
+    };
+    $("selectedLayer").onchange = function(e) {
+      if (!selected) return;
+      var target = e.target.value;
+      var src = selected._layer;
+      if (src === target) return;
+      groups[src].removeLayer(selected);
+      selected._layer = target;
+      groups[target].addLayer(selected);
+      applyStyle(selected, true);
+      saveHistory();
+      renderSidebar();
+    };
+
+    $("search").oninput = renderSidebar;
+    $("undo").onclick = undo;
+    $("redo").onclick = redo;
+
+    $("download").onclick = function() {
+      var blob = new Blob([JSON.stringify(getSandboxGeoJSON(), null, 2)], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "sandbox-data.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    /* =========== ADVANCES =========== */
+    var ADVANCE_STORAGE_KEY = "polrad_sandbox_advances";
+    var advances = [];
+    var advanceState = {
+      active: false,
+      side: "russia",
+      before: null,
+      createdFids: [],
+      lastEffects: null
+    };
+
+    function loadAdvances() {
+      try {
+        var raw = localStorage.getItem(ADVANCE_STORAGE_KEY);
+        advances = raw ? JSON.parse(raw) : [];
+      } catch (e) { advances = []; }
+    }
+    function saveAdvances() {
+      try { localStorage.setItem(ADVANCE_STORAGE_KEY, JSON.stringify(advances)); }
+      catch (e) { console.warn("saveAdvances failed:", e); }
+    }
+
+    function getLayerFeatures(layerId) {
+      return groups[layerId].getLayers().map(function(l){
+        var f = l.toGeoJSON();
+        f.properties = Object.assign({}, l.feature && l.feature.properties ? l.feature.properties : {});
+        return f;
+      });
+    }
+    function unionAreaKm2(layerIds) {
+      var features = [];
+      layerIds.forEach(function(id){
+        getLayerFeatures(id).forEach(function(f){
+          if (f && f.geometry && (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon")) features.push(f);
+        });
+      });
+      if (!features.length) return 0;
+      var r = features[0];
+      for (var i = 1; i < features.length; i++) { try { r = turf.union(r, features[i]); } catch (e) {} }
+      try { return turf.area(r) / 1e6; } catch (e) { return 0; }
+    }
+    function currentControlledAreas() {
+      return { russia: unionAreaKm2(["russia"]), grayzone: unionAreaKm2(["grayzone"]) };
+    }
+    function createdPolygonsAreaKm2() {
+      var t = 0;
+      advanceState.createdFids.forEach(function(fid){
+        var l = findPolygon(fid);
+        if (l) { try { t += turf.area(l.toGeoJSON()); } catch (e) {} }
+      });
+      return t / 1e6;
+    }
+    function computeAdvanceEffects() {
+      var value = Number(createdPolygonsAreaKm2().toFixed(2));
+      return value >= 0.005 ? [{ side: advanceState.side, value: value }] : [];
+    }
+    function areaDisplay(effects) {
+      return (effects || []).map(function(e){
+        var v = Number(e.value);
+        return (v > 0 ? "+" : "") + v.toFixed(2) + " km²";
+      }).join(" ");
+    }
+    function dateTimeNow() {
+      var d = new Date();
+      var p = function(n){ return String(n).padStart(2, "0"); };
+      return {
+        date: d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate()),
+        time: p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds())
+      };
+    }
+    function setAdvanceStatus(text, active) {
+      var node = $("advanceStatus");
+      if (!node) return;
+      node.textContent = text;
+      node.className = active ? "active" : "";
+    }
+    function renderAreaPreview() {
+      var box = $("advanceAreaPreview");
+      var effects = advanceState.lastEffects;
+      if (!box || !effects) return;
+      var color = $("advanceColor").value;
+      box.innerHTML =
+        '<div style="font-size:11px;color:#777;margin-bottom:3px">Advance polygon area</div>' +
+        effects.map(function(e){
+          var v = Number(e.value);
+          return '<span class="advance-effect ' + color + '">' +
+            (v > 0 ? "+" : "") + v.toFixed(2) + ' km²</span>';
+        }).join(" ") +
+        '<div style="margin-top:5px;color:#777;font-size:11px">This color is used for the area chip on the sandbox map.</div>';
+    }
+
+    function createAdvanceUI() {
+      var actions = document.querySelector(".actions");
+      if (!actions || $("advanceEditorBox")) return;
+
+      var createButton = document.createElement("button");
+      createButton.className = "btn";
+      createButton.id = "createAdvanceButton";
+      createButton.textContent = "+ Create Advance";
+      actions.insertBefore(createButton, $("publish"));
+
+      var box = document.createElement("div");
+      box.className = "box";
+      box.id = "advanceEditorBox";
+      box.innerHTML = `
+        <h4>Advance update</h4>
+        <label>Advance side</label>
+        <select id="advanceSide">
+          <option value="russia">🔴 Russia</option>
+          <option value="grayzone">⚪ Gray zone change</option>
+        </select>
+        <label>Area chip color on the sandbox map</label>
+        <select id="advanceColor">
+          <option value="red">🔴 Red</option>
+          <option value="blue">🔵 Blue</option>
+        </select>
+        <div class="advance-row">
+          <button class="btn primary" id="advanceStart">Create Advance</button>
+          <button class="btn" id="advanceFinish" disabled>Finish Advance</button>
+        </div>
+        <div id="advanceStatus">No advance in progress.</div>
+        <div id="advanceAreaPreview">
+          Area changes will appear here after you click Finish Advance.
+        </div>
+        <div id="advanceTextWrap" style="display:none">
+          <label>English advance description</label>
+          <textarea id="advanceTextEn" placeholder="Example: Russian forces advanced near ..."></textarea>
+          <label>Russian advance description</label>
+          <textarea id="advanceTextRu" placeholder="Например: российские силы продвинулись ..."></textarea>
+          <div class="advance-row">
+            <button class="btn primary" id="advanceSave">Save Advance</button>
+            <button class="btn" id="advanceCancel">Cancel</button>
+          </div>
+        </div>
+      `;
+      actions.parentNode.insertBefore(box, $("search"));
+
+      createButton.onclick = startAdvance;
+      $("advanceStart").onclick = startAdvance;
+      $("advanceFinish").onclick = finishAdvance;
+      $("advanceSave").onclick = saveAdvance;
+      $("advanceCancel").onclick = cancelAdvance;
+
+      renderAdvanceHistory();
+    }
+
+    function addDrawAdvanceButton() {
+      if ($("drawAdvancePolygon")) return;
+      var row = document.createElement("div");
+      row.className = "advance-row";
+      row.id = "advancePolygonRow";
+      var sideName = advanceState.side === "russia" ? "Russian" : "Gray zone";
+      row.innerHTML = '<button class="btn" id="drawAdvancePolygon">Draw ' + sideName + ' advance polygon</button>';
+      $("advanceTextWrap").parentNode.insertBefore(row, $("advanceTextWrap"));
+      $("drawAdvancePolygon").onclick = drawAdvancePolygon;
+    }
+
+    function startAdvance() {
+      if (advanceState.active) return;
+      advanceState.active = true;
+      advanceState.side = $("advanceSide").value;
+      advanceState.before = currentControlledAreas();
+      advanceState.createdFids = [];
+      advanceState.lastEffects = null;
+      $("advanceStart").disabled = true;
+      $("advanceFinish").disabled = false;
+      $("advanceSide").disabled = true;
+      setAdvanceStatus("Advance mode active. Draw the polygon, then click Finish Advance.", true);
+      addDrawAdvanceButton();
+    }
+
+    function drawAdvancePolygon() {
+      if (!advanceState.active) return;
+      var layerId = advanceState.side;
+      if (!groups[layerId]) return;
+      if (layerVisible[layerId] === false) setLayerVisible(layerId, true);
+      deselect();
+      drawing = true;
+      window.polradAdvanceDrawing = true;
+      map.pm.enableDraw("Polygon", { snappable: true, allowSelfIntersection: false });
+
+      function onCreate(event) {
+        map.off("pm:create", onCreate);
+        if (!window.polradAdvanceDrawing) return;
+        window.polradAdvanceDrawing = false;
+
+        var layer = event.layer;
+        map.pm.disableDraw();
+        drawing = false;
+        map.removeLayer(layer);
+
+        var feature = layer.toGeoJSON();
+        feature.properties = { Name: "Advance " + (advances.length + 1) };
+        layer.feature = feature;
+        layer._layer = layerId;
+        layer._fid = "advance-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+        layer.feature.properties._advanceId = "pending";
+
+        setupPolygon(layer, layerId);
+        groups[layerId].addLayer(layer);
+        advanceState.createdFids.push(layer._fid);
+        saveHistory();
+        renderSidebar();
+        select(layer);
+        setAdvanceStatus("Advance polygon created. Reshape it if needed, then click Finish Advance.", true);
+      }
+
+      map.on("pm:create", onCreate);
+    }
+
+    function finishAdvance() {
+      if (!advanceState.active) return;
+      advanceState.lastEffects = computeAdvanceEffects();
+      renderAreaPreview();
+      $("advanceTextWrap").style.display = "block";
+      $("advanceFinish").disabled = true;
+      $("advanceTextEn").focus();
+      setAdvanceStatus("Area calculated. Write both descriptions, then click Save Advance.", false);
+    }
+
+    async function saveAdvance() {
+      if (!advanceState.active) return;
+      var textEn = $("advanceTextEn").value.trim();
+      var textRu = $("advanceTextRu").value.trim();
+      if (!textEn || !textRu) {
+        alert("Please enter both English and Russian descriptions.");
+        if (!textEn) $("advanceTextEn").focus();
+        else $("advanceTextRu").focus();
+        return;
+      }
+
+      var now = dateTimeNow();
+      var effects = computeAdvanceEffects();
+      var primaryValue = effects.length ? effects[0].value : 0;
+      var id = "adv-" + Date.now();
+
+      advanceState.createdFids.forEach(function(fid){
+        var l = findPolygon(fid);
+        if (l && l.feature && l.feature.properties) l.feature.properties._advanceId = id;
+      });
+
+      var snap = getSandboxGeoJSON();
+
+      var c = map.getCenter();
+      var focus = { lat: c.lat, lng: c.lng, zoom: map.getZoom() };
+
+      var item = {
+        id: id,
+        date: now.date,
+        time: now.time,
+        text_en: textEn,
+        text_ru: textRu,
+        text: textEn,
+        side: advanceState.side,
+        advanceType: "normal",
+        areaChange: Number(primaryValue.toFixed(2)),
+        areaEffects: effects,
+        areaDisplay: areaDisplay(effects),
+        areaColor: $("advanceColor").value,
+        focus: focus,
+        polygonFids: advanceState.createdFids.slice(),
+        snapshot: "history/advances/" + id + ".json",
+        beforeAreas: advanceState.before,
+        _snapshotData: snap
+      };
+
+      advances.push(item);
+      saveAdvances();
+      renderAdvanceHistory();
+
+      advanceState.active = false;
+      advanceState.createdFids = [];
+      $("advanceStart").disabled = false;
+      $("advanceFinish").disabled = true;
+      $("advanceSide").disabled = false;
+      $("advanceTextWrap").style.display = "none";
+      $("advanceTextEn").value = "";
+      $("advanceTextRu").value = "";
+      var row = $("advancePolygonRow");
+      if (row) row.remove();
+
+      setAdvanceStatus("Advance saved locally. Click Publish to push to the version repo.", false);
+      renderSidebar();
+    }
+
+    function cancelAdvance() {
+      window.polradAdvanceDrawing = false;
+      if (!advanceState.active) return;
+      advanceState.active = false;
+      advanceState.createdFids = [];
+      $("advanceStart").disabled = false;
+      $("advanceFinish").disabled = true;
+      $("advanceSide").disabled = false;
+      $("advanceTextWrap").style.display = "none";
+      var row = $("advancePolygonRow");
+      if (row) row.remove();
+      setAdvanceStatus("Advance cancelled.", false);
+    }
+
+    function renderAdvanceHistory() {
+      var box = $("advanceHistory");
+      if (!box) return;
+      box.innerHTML = "";
+      if (!advances.length) {
+        box.innerHTML = '<div class="small">No advance history saved yet.</div>';
+        return;
+      }
+      advances.slice().reverse().forEach(function(item){
+        var row = document.createElement("div");
+        row.className = "advance-history-item";
+        var sideLabel = item.side === "russia" ? "🔴 Russia" : "⚪ Gray zone";
+        var color = (item.areaColor || "red") === "blue" ? "#1e88e5" : "#e53935";
+        row.innerHTML =
+          '<div class="advance-history-date">' + item.date + " " + item.time + " · " + sideLabel + "</div>" +
+          "<div><b>EN:</b> " + (item.text_en || "") + "</div>" +
+          "<div><b>RU:</b> " + (item.text_ru || "") + "</div>" +
+          (item.areaDisplay ? '<div>Area: <span style="font-weight:700;color:' + color + '">' + item.areaDisplay + "</span></div>" : "");
+        box.appendChild(row);
+      });
+    }
+
+    // ---- PUBLISH ----
+    $("publish").onclick = async function() {
+      setStatus("Publishing...");
+      try {
+        var unsent = advances.filter(function(a){ return a._snapshotData && !a._snapshotUploaded; });
+        if (unsent.length) {
+          setStatus("Uploading " + unsent.length + " snapshot(s)...");
+          var snapshots = {};
+          unsent.forEach(function(a){ snapshots[a.id] = a._snapshotData; });
+          var snapResp = await fetch(WORKER, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "publishSnapshots",
+              repo: TARGET_REPO,
+              snapshots: snapshots
+            })
+          });
+          var snapResult = await snapResp.json();
+          if (!snapResp.ok || !snapResult.success) throw new Error(snapResult.error || "Snapshot upload failed");
+          unsent.forEach(function(a){ a._snapshotUploaded = true; delete a._snapshotData; });
+          saveAdvances();
+        }
+
+        setStatus("Publishing map files...");
+        var publishAdvances = advances.map(function(a){
+          var c = Object.assign({}, a);
+          delete c._snapshotData;
+          delete c._snapshotUploaded;
+          return c;
+        });
+
+        var response = await fetch(WORKER, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "publish",
+            repo: TARGET_REPO,
+            files: getSandboxGeoJSON(),
+            advances: publishAdvances
+          })
+        });
+        var result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "Publish failed");
+
+        setStatus("Published to " + (result.repo || TARGET_REPO) + ".");
+        alert("Published successfully to " + (result.repo || TARGET_REPO) + "!");
+      } catch (e) {
+        setStatus(e.message);
+        alert("Publish failed.\n\n" + e.message);
+      }
+    };
+
+    /* ---- SEARCH ---- */
+    var sInput = $("mapSearch");
+    var sResults = $("mapSearchResults");
+    var searchMarker = null;
+    function hideResults() { sResults.style.display = "none"; sResults.innerHTML = ""; }
+    async function doSearch() {
+      var q = sInput.value.trim();
+      if (!q) { hideResults(); return; }
+      var m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+      if (m) {
+        var lat = Number(m[1]), lng = Number(m[2]);
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          map.setView([lat, lng], 13);
+          if (searchMarker) map.removeLayer(searchMarker);
+          searchMarker = L.marker([lat, lng]).addTo(map).bindPopup(lat + ", " + lng).openPopup();
+          hideResults();
+          return;
+        }
+      }
+      sResults.innerHTML = '<div class="mapSearchResult">Searching...</div>';
+      sResults.style.display = "block";
+      try {
+        var r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&accept-language=en&q=" + encodeURIComponent(q), { headers: { "Accept": "application/json" } });
+        var places = await r.json();
+        sResults.innerHTML = "";
+        if (!places.length) { sResults.innerHTML = '<div class="mapSearchResult">No results found.</div>'; return; }
+        places.forEach(function(p){
+          var it = document.createElement("div");
+          it.className = "mapSearchResult";
+          it.textContent = p.display_name;
+          it.onclick = function(){
+            var plat = Number(p.lat), plng = Number(p.lon);
+            map.setView([plat, plng], 13);
+            if (searchMarker) map.removeLayer(searchMarker);
+            searchMarker = L.marker([plat, plng]).addTo(map).bindPopup(p.display_name).openPopup();
+            hideResults();
+          };
+          sResults.appendChild(it);
+        });
+      } catch (e) {
+        sResults.innerHTML = '<div class="mapSearchResult">Search failed.</div>';
+      }
+    }
+    sInput.addEventListener("keydown", function(e){ if (e.key === "Enter") doSearch(); if (e.key === "Escape") hideResults(); });
+    document.addEventListener("click", function(e){ if (!$("mapSearchBox").contains(e.target)) hideResults(); });
+
+    /* ---- TABS ---- */
+    function showTab(name) {
+      $("paneTools").style.display = name === "tools" ? "block" : "none";
+      $("paneAdvances").style.display = name === "advances" ? "block" : "none";
+      $("tabTools").classList.toggle("active", name === "tools");
+      $("tabAdvances").classList.toggle("active", name === "advances");
+    }
+    $("tabTools").onclick = function(){ showTab("tools"); };
+    $("tabAdvances").onclick = function(){ showTab("advances"); };
+
+    /* ---- INIT ---- */
+    loadAdvances();
+    createAdvanceUI();
+    boot();
+  </script>
+</body>
+</html>
